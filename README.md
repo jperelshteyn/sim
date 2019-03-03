@@ -3,7 +3,15 @@
 Selects amount categories from predermined discrete probability distribution
 Then selects random amount from within catgories
 
-## Configuration
+## Build
+
+### Windows
+
+```
+make build_windows
+```
+
+## Configure
 
 Probabilities and amount ranges can be updated by editing `range_probabilities.csv`
 
