@@ -121,9 +121,8 @@ func readProbs() ([]RangeProb, error) {
 	return probs, nil
 }
 
-func prep() ([]RangeProb, error) {
+func prep(rangeProbs []RangeProb) ([]RangeProb, error) {
 	var cumRangeProbs []RangeProb
-	rangeProbs, _ := readProbs()
 	sort.Slice(rangeProbs, func(i, j int) bool {
 		return rangeProbs[i].prob > rangeProbs[j].prob
 	})
@@ -172,7 +171,7 @@ func pickAmount(cumRangeProbs []RangeProb) (int64, error) {
 	if rp.lo == rp.hi {
 		return rp.lo, nil
 	}
-	return rp.lo + rand.Int63n(rp.hi-rp.lo), nil
+	return rp.lo + rand.Int63n(rp.hi-rp.lo+1), nil
 }
 
 func runCompany(simNum int64, input *Input, cumRangeProbs []RangeProb, results *Results, wg *sync.WaitGroup) {
@@ -209,7 +208,8 @@ func runSimulation(input *Input, cumRangeProbs []RangeProb, results *Results) {
 func main() {
 	var input Input
 	input.Get()
-	cumRangeProbs, err := prep()
+	rangeProbs, _ := readProbs()
+	cumRangeProbs, err := prep(rangeProbs)
 	if err != nil {
 		panic(err)
 	}
