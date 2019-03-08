@@ -25,6 +25,8 @@ type Input struct {
 	MemCount int64
 	Threshold int64
 	SimCount int64
+	RandProbs [][]float64
+	RandAmounts [][]int64
 }
 
 type SimRun struct {
@@ -43,6 +45,20 @@ func (i *Input) Get() {
 	i.MemCount = requestIntInput("Enter number of members: ")
 	i.Threshold = requestIntInput("Enter threshold: ")
 	i.SimCount = 1000
+}
+
+func (i *Input) GenerateSeeds() {
+	for s := int64(0); s < i.SimCount; s++ {
+		var probs []float64
+		var amounts []int64
+		for m := int64(0); m < i.MemCount; m++ {
+			randSource := rand.NewSource(time.Now().UnixNano() + s + m) 
+			probs = append(probs, rand.New(randSource).Float64())
+			amounts = append(amounts, rand.New(randSource).Int63n(2500000))
+		}
+		i.RandProbs = append(i.RandProbs, probs)
+		i.RandAmounts = append(i.RandAmounts, amounts)
+	}
 }
 
 func (s *SimRun) Less(other SimRun) bool {
@@ -160,9 +176,7 @@ func pickRange(cumRangeProbs []RangeProb, randProp float64) (RangeProb, error) {
 	return RangeProb{}, fmt.Errorf("no range found")
 }
 
-func pickAmount(cumRangeProbs []RangeProb) (int64, error) {
-	rand.Seed(time.Now().UnixNano())
-	randProb := rand.Float64()
+func pickAmount(cumRangeProbs []RangeProb, randProb float64, randAmount int64) (int64, error) {
 	rp, err := pickRange(cumRangeProbs, randProb)
 	if err != nil {
 		fmt.Printf("%v\n", err.Error())
@@ -171,7 +185,11 @@ func pickAmount(cumRangeProbs []RangeProb) (int64, error) {
 	if rp.lo == rp.hi {
 		return rp.lo, nil
 	}
-	return rp.lo + rand.Int63n(rp.hi-rp.lo+1), nil
+	// base := int64(randProb * 10000000)
+	amount := rp.lo + (randAmount % (1 + rp.hi - rp.lo))
+	// fmt.Printf("r: %v, b: %v, a: %v    ", randProb, base, amount)
+	// amount := rp.lo + rand.New(randSource).Int63n(rp.hi-rp.lo+1)
+	return amount, nil
 }
 
 func runCompany(simNum int64, input *Input, cumRangeProbs []RangeProb, results *Results, wg *sync.WaitGroup) {
@@ -179,7 +197,9 @@ func runCompany(simNum int64, input *Input, cumRangeProbs []RangeProb, results *
 	var amount int64
 	var sumAmount int64
 	for j := int64(0); j < input.MemCount; j++ {
-		amount, _ = pickAmount(cumRangeProbs)
+		randProb := input.RandProbs[simNum][j]
+		randAmount := input.RandAmounts[simNum][j]
+		amount, _ = pickAmount(cumRangeProbs, randProb, randAmount)
 		sumAmount += amount
 		if amount >= input.Threshold {
 			hit := SimRun{SimNum: simNum+1, MemNum: j+1, Amount: amount}
@@ -200,21 +220,22 @@ func runSimulation(input *Input, cumRangeProbs []RangeProb, results *Results) {
 	for i := int64(0); i < input.SimCount; i++ {
 		go runCompany(i, input, cumRangeProbs, results, &wg)
 	}
-	estSeconds := 0.000018 * float64(input.SimCount) * float64(input.MemCount)
-	fmt.Printf("Simulation will take an estimated %v seconds\n", estSeconds)
 	wg.Wait()
 }
 
 func main() {
 	var input Input
 	input.Get()
+	start := time.Now()
+	input.GenerateSeeds()
+	// fmt.Println(input.RandProbs)
 	rangeProbs, _ := readProbs()
 	cumRangeProbs, err := prep(rangeProbs)
 	if err != nil {
 		panic(err)
 	}
 	var results Results
-	start := time.Now()
+	
 	runSimulation(&input, cumRangeProbs, &results)
 	resultsPath := fmt.Sprintf("results/simulation_results_%d.csv", time.Now().Unix())
 	results.Prep()
