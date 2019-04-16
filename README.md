@@ -1,7 +1,8 @@
 # Health Spending Simulation
 
-Selects amount categories from predermined discrete probability distribution
-Then selects random amount from within catgories
+CLI application for running fast concurrent simulations.
+Runs 1000 simulations based on discrete probability distribution,
+company size and threshhold amount.
 
 ## Build
 
