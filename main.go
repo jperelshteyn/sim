@@ -13,6 +13,8 @@ import (
 	"sync"
 	"time"
 	"strings"
+
+	"github.com/schollz/progressbar"
 )
 
 type RangeProb struct {
@@ -48,17 +50,25 @@ func (i *Input) Get() {
 }
 
 func (i *Input) GenerateSeeds() {
+	var rows  []string
+	bar := progressbar.New(int(i.SimCount * i.MemCount))
 	for s := int64(0); s < i.SimCount; s++ {
 		var probs []float64
 		var amounts []int64
 		for m := int64(0); m < i.MemCount; m++ {
+			bar.Add(1)
 			randSource := rand.NewSource(time.Now().UnixNano() + s + m) 
-			probs = append(probs, rand.New(randSource).Float64())
-			amounts = append(amounts, rand.New(randSource).Int63n(2500000))
+			prob := rand.New(randSource).Float64()
+			probs = append(probs, prob)
+			amount := rand.New(randSource).Int63n(2500000)
+			amounts = append(amounts, amount)
+			rows = append(rows, fmt.Sprintf("%v,%v", prob, amount))
 		}
 		i.RandProbs = append(i.RandProbs, probs)
 		i.RandAmounts = append(i.RandAmounts, amounts)
 	}
+	bar.Finish()
+	fmt.Println("")
 }
 
 func (s *SimRun) Less(other SimRun) bool {
@@ -185,10 +195,7 @@ func pickAmount(cumRangeProbs []RangeProb, randProb float64, randAmount int64) (
 	if rp.lo == rp.hi {
 		return rp.lo, nil
 	}
-	// base := int64(randProb * 10000000)
 	amount := rp.lo + (randAmount % (1 + rp.hi - rp.lo))
-	// fmt.Printf("r: %v, b: %v, a: %v    ", randProb, base, amount)
-	// amount := rp.lo + rand.New(randSource).Int63n(rp.hi-rp.lo+1)
 	return amount, nil
 }
 
@@ -226,21 +233,17 @@ func runSimulation(input *Input, cumRangeProbs []RangeProb, results *Results) {
 func main() {
 	var input Input
 	input.Get()
-	start := time.Now()
+	fmt.Println("Running simulation...")
 	input.GenerateSeeds()
-	// fmt.Println(input.RandProbs)
 	rangeProbs, _ := readProbs()
 	cumRangeProbs, err := prep(rangeProbs)
 	if err != nil {
 		panic(err)
 	}
 	var results Results
-	
 	runSimulation(&input, cumRangeProbs, &results)
 	resultsPath := fmt.Sprintf("results/simulation_results_%d.csv", time.Now().Unix())
 	results.Prep()
 	results.Save(&input, resultsPath)
-	elapsed := time.Now().Sub(start)
-	fmt.Printf("Execution time: %v\n", elapsed.Seconds())
 	fmt.Printf("Results are saved in %s\n", resultsPath)
 }
